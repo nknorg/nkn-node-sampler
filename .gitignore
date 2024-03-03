@@ -1,0 +1,7 @@
+.idea
+*~
+.DS_Store
+build
+*.log
+*.exe
+nkn-node-sampler
