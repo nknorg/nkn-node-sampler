@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math"
 	"math/big"
@@ -83,7 +83,7 @@ func makeRPCRequest(url string, method string, params interface{}) ([]byte, erro
 	}
 	defer resp.Body.Close()
 
-	return ioutil.ReadAll(resp.Body)
+	return io.ReadAll(resp.Body)
 }
 
 func tcpAddrToRPCAddr(tcpAddr string) (string, error) {
@@ -209,14 +209,14 @@ func main() {
 	var (
 		rpcAddr string
 		m, n    int
-		jsFmt   bool
+		jsonOut string
 		version bool
 	)
 
 	flag.StringVar(&rpcAddr, "rpc", "http://seed.nkn.org:30003", "Initial RPC address in the form ip:port")
 	flag.IntVar(&m, "m", 8, "Number of concurrent goroutines")
 	flag.IntVar(&n, "n", 8, "Number of steps to repeat")
-	flag.BoolVar(&jsFmt, "json", false, "Print version")
+	flag.StringVar(&jsonOut, "json", "", "Write output to json file")
 	flag.BoolVar(&version, "version", false, "Print version")
 	flag.Parse()
 
@@ -292,24 +292,27 @@ func main() {
 	uncertainty := new(big.Int).Div(new(big.Int).Mul(big.NewInt(int64(math.Sqrt(float64(totalNodesVisited)))), totalSpace), totalArea).Int64()
 	estimatedRelayPerSecond := float64(totalRelay) / float64(totalUptime) * float64(estimatedTotalNodes) / (math.Log2(float64(estimatedTotalNodes)) / 2)
 
-	if jsFmt {
-		jsStr, err := json.Marshal(map[string]float64{
-			"visited":     float64(totalNodesVisited),
-			"covered":     100 * float64(totalNodesVisited) / float64(estimatedTotalNodes),
-			"Estimated":   float64(estimatedTotalNodes),
-			"uncertainty": float64(uncertainty),
-			"relayPS":     estimatedRelayPerSecond,
-			"time":        float64(time.Since(timeStart)),
+	if len(jsonOut) > 0 {
+		jsonStr, err := json.Marshal(map[string]interface{}{
+			"nodesVisited":     totalNodesVisited,
+			"areaCovered":      float64(totalNodesVisited) / float64(estimatedTotalNodes),
+			"nodesEstimated":   estimatedTotalNodes,
+			"nodesUncertainty": uncertainty,
+			"relayPerSecond":   estimatedRelayPerSecond,
+			"updateTime":       time.Now().Unix(),
 		})
 		if err != nil {
-			log.Fatalln("json formatter error")
+			log.Fatalln("Json formatter error:", err)
 		}
-		fmt.Println(string(jsStr))
+		err = os.WriteFile(jsonOut, jsonStr, 0644)
+		if err != nil {
+			log.Fatalln("Write output to file error:", err)
+		}
 	} else {
 		log.Printf("Total nodes visited: %d\n", totalNodesVisited)
 		log.Printf("Total area covered: %.2f%%\n", 100*float64(totalNodesVisited)/float64(estimatedTotalNodes))
 		log.Printf("Estimated total number of nodes in the network: %d +- %d\n", estimatedTotalNodes, uncertainty)
 		log.Printf("Estimated network relay per second: %.0f\n", estimatedRelayPerSecond)
-		log.Printf("Time used: %v\n", time.Since(timeStart))
 	}
+	log.Printf("Time used: %v\n", time.Since(timeStart))
 }
