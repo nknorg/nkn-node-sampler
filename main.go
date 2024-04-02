@@ -209,12 +209,14 @@ func main() {
 	var (
 		rpcAddr string
 		m, n    int
+		jsFmt   bool
 		version bool
 	)
 
 	flag.StringVar(&rpcAddr, "rpc", "http://seed.nkn.org:30003", "Initial RPC address in the form ip:port")
 	flag.IntVar(&m, "m", 8, "Number of concurrent goroutines")
 	flag.IntVar(&n, "n", 8, "Number of steps to repeat")
+	flag.BoolVar(&jsFmt, "json", false, "Print version")
 	flag.BoolVar(&version, "version", false, "Print version")
 	flag.Parse()
 
@@ -290,9 +292,24 @@ func main() {
 	uncertainty := new(big.Int).Div(new(big.Int).Mul(big.NewInt(int64(math.Sqrt(float64(totalNodesVisited)))), totalSpace), totalArea).Int64()
 	estimatedRelayPerSecond := float64(totalRelay) / float64(totalUptime) * float64(estimatedTotalNodes) / (math.Log2(float64(estimatedTotalNodes)) / 2)
 
-	log.Printf("Total nodes visited: %d\n", totalNodesVisited)
-	log.Printf("Total area covered: %.2f%%\n", 100*float64(totalNodesVisited)/float64(estimatedTotalNodes))
-	log.Printf("Estimated total number of nodes in the network: %d +- %d\n", estimatedTotalNodes, uncertainty)
-	log.Printf("Estimated network relay per second: %.0f\n", estimatedRelayPerSecond)
-	log.Printf("Time used: %v\n", time.Since(timeStart))
+	if jsFmt {
+		jsStr, err := json.Marshal(map[string]float64{
+			"visited":     float64(totalNodesVisited),
+			"covered":     100 * float64(totalNodesVisited) / float64(estimatedTotalNodes),
+			"Estimated":   float64(estimatedTotalNodes),
+			"uncertainty": float64(uncertainty),
+			"relayPS":     estimatedRelayPerSecond,
+			"time":        float64(time.Since(timeStart)),
+		})
+		if err != nil {
+			log.Fatalln("json formatter error")
+		}
+		fmt.Println(string(jsStr))
+	} else {
+		log.Printf("Total nodes visited: %d\n", totalNodesVisited)
+		log.Printf("Total area covered: %.2f%%\n", 100*float64(totalNodesVisited)/float64(estimatedTotalNodes))
+		log.Printf("Estimated total number of nodes in the network: %d +- %d\n", estimatedTotalNodes, uncertainty)
+		log.Printf("Estimated network relay per second: %.0f\n", estimatedRelayPerSecond)
+		log.Printf("Time used: %v\n", time.Since(timeStart))
+	}
 }
